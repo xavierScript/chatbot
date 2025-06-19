@@ -20,7 +20,7 @@ function App() {
 
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/chat", {
+      const res = await fetch(`${process.env.REACT_APP_CHATURL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
@@ -33,6 +33,7 @@ function App() {
       setLoading(false);
     }
   };
+
 
   const runSpeechRecognition = () => {
     // Check if we're on HTTPS or localhost
