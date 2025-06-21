@@ -3,7 +3,10 @@ import "./App.css";
 
 function App() {
   const [prompt, setPrompt] = useState("");
-  const [response, setResponse] = useState("");
+  const [chatHistory, setChatHistory] = useState(() => {
+    const saved = localStorage.getItem("chatHistory");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [dark, setDark] = useState(() => {
@@ -15,25 +18,64 @@ function App() {
     localStorage.setItem("darkMode", dark);
   }, [dark]);
 
+  useEffect(() => {
+    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+  }, [chatHistory]);
+
+  // Auto-scroll to bottom when new messages are added
+  useEffect(() => {
+    const chatMessages = document.querySelector(".chat-messages");
+    if (chatMessages) {
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+  }, [chatHistory, loading]);
+
   const sendPrompt = async () => {
     if (!prompt.trim()) return;
 
+    const userMessage = {
+      id: Date.now(),
+      type: "user",
+      content: prompt.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    setChatHistory((prev) => [...prev, userMessage]);
     setLoading(true);
+
     try {
       const res = await fetch(`${process.env.REACT_APP_CHATURL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: prompt.trim() }),
       });
       const data = await res.json();
-      setResponse(data.response);
+
+      const aiMessage = {
+        id: Date.now() + 1,
+        type: "ai",
+        content: data.response,
+        timestamp: new Date().toISOString(),
+      };
+
+      setChatHistory((prev) => [...prev, aiMessage]);
     } catch (err) {
-      setResponse("Error getting response.");
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: "ai",
+        content: "Error getting response.",
+        timestamp: new Date().toISOString(),
+      };
+      setChatHistory((prev) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
+      setPrompt("");
     }
   };
 
+  const clearChat = () => {
+    setChatHistory([]);
+  };
 
   const runSpeechRecognition = () => {
     // Check if we're on HTTPS or localhost
@@ -132,23 +174,59 @@ function App() {
           <span className="logo-icon">🤖</span>
           <h1>AI Chat Assistant</h1>
         </div>
-        <button
-          className="theme-toggle"
-          aria-label="Toggle dark mode"
-          onClick={() => setDark((d) => !d)}
-          title={dark ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {dark ? "☀️" : "🌙"}
-        </button>
+        <div className="header-actions">
+          <button
+            className="clear-chat-btn"
+            onClick={clearChat}
+            title="Clear chat history"
+            disabled={chatHistory.length === 0}
+          >
+            🗑️ Clear Chat
+          </button>
+          <button
+            className="theme-toggle"
+            aria-label="Toggle dark mode"
+            onClick={() => setDark((d) => !d)}
+            title={dark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {dark ? "☀️" : "🌙"}
+          </button>
+        </div>
       </div>
 
       <div className="chat-container">
         <div className="chat-messages">
-          {response && (
-            <div className="message response">
+          {chatHistory.length === 0 && (
+            <div className="empty-state">
+              <div className="empty-icon">💬</div>
+              <h3>Start a conversation</h3>
+              <p>Ask me anything and I'll help you out!</p>
+            </div>
+          )}
+          {chatHistory.map((message) => (
+            <div key={message.id} className={`message ${message.type}`}>
+              <div className="message-avatar">
+                {message.type === "user" ? "You" : "AI"}
+              </div>
+              <div className="message-content">
+                <pre>{message.content}</pre>
+                <div className="message-timestamp">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </div>
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="message ai">
               <div className="message-avatar">AI</div>
               <div className="message-content">
-                <pre>{response}</pre>
+                <div className="loading-indicator">
+                  <div className="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
